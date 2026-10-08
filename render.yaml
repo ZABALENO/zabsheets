@@ -1,0 +1,24 @@
+# Render Blueprint: jen web service (data jsou v Google Sheets, databázi na Renderu nepotřebuješ).
+services:
+  - type: web
+    name: zabaleno
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production
+      - key: SHEET_ID
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: PARTNER_EMAIL
+        sync: false
+      - key: PARTNER_PASSWORD
+        sync: false
