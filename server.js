@@ -220,7 +220,13 @@ const productId = id => /^[\w-]{1,64}$/.test(String(id)) ? String(id) : (() => {
 app.post('/api/products', auth, admin, w(async (q, s) => { const id = productId(q.body.id); await commit(() => M.products.put(id, q.body || {})); s.json({ ok: 1 }); }));
 app.put('/api/products/:id', auth, admin, w(async (q, s) => { const id = productId(q.params.id); await commit(() => M.products.put(id, q.body || {})); s.json({ ok: 1 }); }));
 app.delete('/api/products/:id', auth, admin, w(async (q, s) => { const id = productId(q.params.id); await commit(() => M.products.del(id)); s.json({ ok: 1 }); }));
-crud('orders', M.orders, admin); crud('sales', M.sales, admin); crud('production', M.production);
+// Objednávky: partner je může pouze ČÍST; vytvářet, upravovat stav/cenu a mazat je smí jen admin.
+app.get('/api/orders', auth, (q, s) => s.json(M.orders.list()));
+crud('orders', M.orders, admin);
+// Prodeje: výhradně admin.
+crud('sales', M.sales, admin);
+// Výroba: partner i admin mohou číst a měnit pouze výrobní stav (M.production.put ignoruje ostatní pole).
+crud('production', M.production);
 
 app.patch('/api/orders/:id/status', auth, admin, w(async (q, s) => {
   const id = String(q.params.id), status = String(q.body?.status || '');
