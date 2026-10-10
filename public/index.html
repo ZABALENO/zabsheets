@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZABALENO – Interní dashboard</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+</head>
+<body>
+
+<!-- PŘIHLÁŠENÍ -->
+<section id="login" class="login" hidden>
+  <div class="login-shell">
+    <div class="public-hero">
+      <div class="public-brand"><b>ZABALENO</b><span>Výroba &amp; objednávky</span></div>
+      <div class="public-copy">
+        <span class="eyebrow">AKTUÁLNÍ STAV</span>
+        <h1>Přehled našich objednávek</h1>
+        <p>Aktuální stav výroby a objednávek přehledně na jednom místě.</p>
+      </div>
+      <div class="public-stats" id="publicStats" aria-live="polite">
+        <div class="public-stat accent"><span>Objednáno KS</span><strong id="publicTotalOrdered">—</strong><small>celkem kusů</small></div>
+        <div class="public-stat"><span>Vyrobeno KS</span><strong id="publicTotalProduced">—</strong><small>celkem kusů</small></div>
+      </div>
+      <div class="public-products" id="publicProducts" aria-live="polite"></div>
+      <div class="public-stats filament-stats" id="publicFilamentStats">
+        <div class="public-stat"><span>Filament potřebný mimo výrobu</span><strong id="publicFilamentPending">—</strong><small>gramů</small></div>
+        <div class="public-stat accent"><span>Filamentu aktuálně ve výrobě</span><strong id="publicFilamentActive">—</strong><small>gramů</small></div>
+      </div>
+      <section class="public-order-box">
+        <h2>Vytvořit novou objednávku</h2><p>Vyplňte údaje objednatele a zvolte produkt. Po potvrzení se objednávka uloží do systému a zobrazí se v přehledu.</p>
+        <form id="publicOrderForm" class="public-order-form">
+          <label>Název / jméno zákazníka<input name="customer" required maxlength="160"></label>
+          <label>Kontaktní osoba<input name="contactName" required maxlength="120"></label>
+          <label>E-mail<input name="email" type="email" required maxlength="200"></label>
+          <label>Telefon<input name="phone" type="tel" required maxlength="60"></label>
+          <label class="full">Adresa / doručení (nepovinné)<input name="address" maxlength="300"></label>
+          <label class="full">Produkt<select name="pid" id="publicProductSelect" required><option value="">Načítám produkty…</option></select></label>
+          <label>Počet kusů<input name="qty" type="number" min="1" max="10000" value="1" required></label>
+          <div class="public-order-price"><span>Celková cena</span><strong id="publicOrderPrice">—</strong></div>
+          <label class="full">Poznámka (nepovinná)<textarea name="note" rows="2" maxlength="1000"></textarea></label>
+          <label class="public-confirm full"><input name="confirmed" type="checkbox" required><span>Potvrzuji zadané údaje a odeslání objednávky.</span></label>
+          <p id="publicOrderMsg" class="public-order-msg full" hidden></p>
+          <button class="btn gold full" type="submit">Potvrdit a odeslat objednávku</button>
+        </form>
+      </section>
+      <section class="public-gallery" aria-labelledby="publicGalleryTitle">
+        <h2 id="publicGalleryTitle">Naše produkty</h2>
+        <p>Prohlédněte si výrobky, které si můžete objednat.</p>
+        <div class="public-gallery-list">
+          <figure class="public-gallery-item">
+            <img src="images/sobik.jpeg" alt="Dekorativní sobík ZABALENO ve zlaté a bílé barvě" loading="lazy">
+            <figcaption>Sobík</figcaption>
+          </figure>
+          <figure class="public-gallery-item">
+            <img src="images/andelici.jpeg" alt="Bílí dekorativní andělíčci ZABALENO ve dvou velikostech" loading="lazy">
+            <figcaption>Andělíčci</figcaption>
+          </figure>
+          <figure class="public-gallery-item">
+            <img src="images/stromecek.jpeg" alt="Svítící dekorativní stromeček ZABALENO" loading="lazy">
+            <figcaption>Stromeček</figcaption>
+          </figure>
+        </div>
+      </section>
+      <div class="public-foot"><span class="live-dot"></span><span id="publicUpdated">Načítám aktuální data…</span></div>
+    </div>
+    <form id="loginForm" class="login-card">
+      <div class="brand"><b>ZABALENO</b><small>Interní dashboard</small></div>
+      <h2>Přihlášení</h2>
+      <p class="login-intro">Pro pokračování se přihlaste do interního systému.</p>
+      <label>Email<input name="email" type="email" required autocomplete="username"></label>
+      <label>Heslo<input name="pass" type="password" required autocomplete="current-password"></label>
+      <label class="check"><input name="remember" type="checkbox"> Zapamatovat přihlášení</label>
+      <p id="loginErr" class="err" hidden></p>
+      <button class="btn" type="submit">Přihlásit se</button>
+    </form>
+  </div>
+</section>
+
+<!-- APLIKACE -->
+<div id="app" class="app" hidden>
+  <header class="topbar">
+    <button class="icon" data-act="menu" aria-label="Menu">☰</button>
+    <b class="logo">ZABALENO</b>
+    <button class="icon" data-act="nav" data-v="notifs" aria-label="Upozornění">🔔<i id="bellTop" class="dot" hidden></i></button>
+  </header>
+  <aside id="sidebar" class="sidebar">
+    <div class="brand"><b>ZABALENO</b><small>Interní dashboard</small></div>
+    <nav id="nav"></nav>
+    <div class="me"><span id="meName"></span><button class="link" data-act="logout">Odhlásit se</button></div>
+  </aside>
+  <div class="scrim" data-act="menu"></div>
+  <main id="main"></main>
+</div>
+
+<div id="modal"></div>
+<div id="toast" class="toast" hidden></div>
+<script src="script.js"></script>
+</body>
+</html>
