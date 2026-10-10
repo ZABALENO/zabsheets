@@ -312,6 +312,13 @@ app.put('/api/settings', auth, admin, w(async (q, s) => {
 
 app.get('/healthz', (q, s) => s.send('ok'));
 app.use('/api', (q, s) => s.status(404).json({ error: 'Nenalezeno' }));
+// PUBLIC_OVERVIEW_ALWAYS_OPEN=1 → přehled objednávek na úvodní stránce je trvale rozbalený (bez tlačítka).
+// Nastavuje se jen u konkrétní služby na Renderu; bez proměnné zůstává rozbalovací tlačítko.
+if (/^(1|true|yes|ano)$/i.test(process.env.PUBLIC_OVERVIEW_ALWAYS_OPEN || '')) {
+  const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8')
+    .replace('<details class="public-overview" id="publicOverview">', '<details class="public-overview always-open" id="publicOverview" open>');
+  app.get(['/', '/index.html'], (q, s) => { s.set('Cache-Control', 'no-cache'); s.type('html').send(indexHtml); });
+}
 app.use(express.static(path.join(__dirname, 'public')));
 app.use((e, q, s, n) => {
   const code = e.status || 500; if (code === 500) console.error(e);
