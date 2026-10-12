@@ -184,3 +184,18 @@ tr:last-child td{border-bottom:0}
 .public-overview-body{padding-top:22px}.public-overview-body .public-copy{margin-top:0}
 @media(max-width:520px){.public-toggle{padding:13px 15px;font-size:14px}}
 .public-overview.always-open>.public-toggle{display:none}.public-overview.always-open>.public-overview-body{padding-top:0}
+/* více produktů ve veřejné objednávce */
+.public-items{display:flex;flex-direction:column;gap:10px}
+.public-items-head{display:flex;flex-direction:column;gap:2px;color:#e5ded3;font-size:12px;font-weight:600}.public-items-head small{color:#a9a196;font-weight:400}
+#publicItems{display:flex;flex-direction:column;gap:10px}
+.public-item{display:grid;grid-template-columns:minmax(0,1fr) 96px auto;gap:8px;align-items:end;padding:10px;border:1px solid rgba(255,255,255,.1);border-radius:12px;background:rgba(0,0,0,.12)}
+.public-order-form .public-item label{gap:4px;font-size:11px;font-weight:600}
+.public-item-sub{grid-column:1/-1;color:#a9a196;font-size:12px}
+.public-remove-item{height:42px;width:42px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:transparent;color:#e5ded3;font-size:20px;line-height:1;cursor:pointer}
+.public-remove-item:hover{background:rgba(170,65,65,.25);color:#fff}.public-remove-item[hidden]{display:none}
+.public-add-item{align-self:flex-start;padding:9px 14px;border:1px dashed rgba(210,183,126,.6);border-radius:10px;background:transparent;color:#d2b77e;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+.public-add-item:hover{background:rgba(210,183,126,.12)}
+.public-order-form .public-order-price.full{flex-direction:row;align-items:baseline;justify-content:space-between;border-top:1px solid rgba(255,255,255,.1);padding:12px 2px 2px}
+@media(max-width:520px){.public-item{grid-template-columns:minmax(0,1fr) 80px auto;padding:8px}}
+.group-note{display:inline-block;margin-top:4px;color:var(--mute);font-size:12px}
+.invoice-controls label{cursor:pointer;white-space:nowrap}.invoice-controls input[type=checkbox]{width:18px;height:18px;min-width:18px;margin:0;padding:0;flex:0 0 18px;accent-color:var(--gold);cursor:pointer}

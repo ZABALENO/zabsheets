@@ -41,9 +41,12 @@
           <label>E-mail<input name="email" type="email" required maxlength="200"></label>
           <label>Telefon<input name="phone" type="tel" required maxlength="60"></label>
           <label class="full">Adresa / doručení (nepovinné)<input name="address" maxlength="300"></label>
-          <label class="full">Produkt<select name="pid" id="publicProductSelect" required><option value="">Načítám produkty…</option></select></label>
-          <label>Počet kusů<input name="qty" type="number" min="1" max="10000" value="1" required></label>
-          <div class="public-order-price"><span>Celková cena</span><strong id="publicOrderPrice">—</strong></div>
+          <div class="public-items full">
+            <div class="public-items-head"><span>Produkty</span><small>Do jedné objednávky můžete přidat více produktů.</small></div>
+            <div id="publicItems"></div>
+            <button type="button" class="public-add-item" data-act="addPublicItem">+ Přidat další produkt</button>
+          </div>
+          <div class="public-order-price full"><span>Celková cena</span><strong id="publicOrderPrice">—</strong></div>
           <label class="full">Poznámka (nepovinná)<textarea name="note" rows="2" maxlength="1000"></textarea></label>
           <label class="public-confirm full"><input name="confirmed" type="checkbox" required><span>Potvrzuji zadané údaje a odeslání objednávky.</span></label>
           <p id="publicOrderMsg" class="public-order-msg full" hidden></p>

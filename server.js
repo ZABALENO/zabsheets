@@ -174,21 +174,35 @@ app.post('/api/public-orders', w(async (q, s) => {
   if (!Array.isArray(d.items) || !d.items.length) throw bad('Vyberte produkt a počet kusů.');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw bad('Zadejte platný e-mail.');
   if (d.items.length > 20) throw bad('V jedné objednávce lze zadat nejvýše 20 položek.');
-  const items = d.items.map(line => {
-    const product = all('products').find(p => p.id === String(line.pid) && p.active !== false);
-    const qty = Number(line.qty);
-    if (!product || !Number.isInteger(qty) || qty < 1 || qty > 10000) throw bad('Vyberte platný produkt a množství.');
+  const merged = new Map();                                       // stejný produkt víckrát → sečíst kusy
+  for (const line of d.items) {
+    const pid = String(line?.pid || ''), qty = Number(line?.qty);
+    if (!pid) continue;
+    if (!Number.isInteger(qty) || qty < 1 || qty > 10000) throw bad('Zadejte platný počet kusů (1–10 000).');
+    merged.set(pid, (merged.get(pid) || 0) + qty);
+  }
+  if (!merged.size) throw bad('Vyberte produkt a počet kusů.');
+  const items = [...merged].map(([pid, qty]) => {
+    const product = all('products').find(p => p.id === pid && p.active !== false);
+    if (!product || qty > 10000) throw bad('Vyberte platný produkt a množství.');
     const cost = (Number(product.weight)||0)/1000*(Number(product.matPerKg)||0) + (Number(product.hours)||0)*(Number(product.hourRate)||0) + (Number(product.giftPackage)||0);
     return { pid: product.id, pname: product.name, qty, price: Number(product.price)||0, cost, weight: Number(product.weight)||0, my: 0, partner: 0, vars: {} };
   });
-  const year = new Date().getFullYear(), num = `${year}-WEB-${crypto.randomBytes(3).toString('hex').toUpperCase()}`, id = crypto.randomUUID();
-  const date = new Date().toISOString();
-  const o = { id, num, date, customer, contact: `${contactName}; ${email}; ${phone}`, email, phone, contactName, ship: String(d.address||'').trim(), note: String(d.note||'').trim(), status: 'new', invoiceIssued: false, invoicePaid: false, source: 'public-web', ts: now, items };
-  const task = { id, oid: id, num, customer, due: '', note: o.note, items: items.map(i => ({ pname: i.pname, qty: i.qty, vars: i.vars })), status: 'new', ts: now };
-  const sid = 'o_' + id;
-  const ops = [{tab:'orders',id,doc:o},{tab:'tasks',id,doc:task},{tab:'sales',id:sid,doc:{id:sid,oid:id,num,date,ts:now,lines:items}},fixN(notif('partner',`Nová webová objednávka #${num} od ${customer}.`)),fixN(notif('admin',`Nová webová objednávka #${num} od ${customer}; kontakt ${email}, ${phone}.`))];
+  // Kombinovaná objednávka se v interním systému rozpadne na podobjednávky: každý produkt = vlastní objednávka
+  // s vlastním stavem výroby. Spojuje je společné číslo (group), číslo podobjednávky je group/1, group/2, …
+  const year = new Date().getFullYear(), group = `${year}-WEB-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+  const date = new Date().toISOString(), parts = items.length, note = String(d.note||'').trim(), ship = String(d.address||'').trim();
+  const ops = [];
+  items.forEach((item, k) => {
+    const id = crypto.randomUUID(), num = parts > 1 ? `${group}/${k + 1}` : group, sid = 'o_' + id;
+    const o = { id, num, group, part: k + 1, parts, date, customer, contact: `${contactName}; ${email}; ${phone}`, email, phone, contactName, ship, note, status: 'new', invoiceIssued: false, invoicePaid: false, source: 'public-web', ts: now + k, items: [item] };
+    const task = { id, oid: id, num, group, part: k + 1, parts, customer, due: '', note, items: [{ pname: item.pname, qty: item.qty, vars: item.vars }], status: 'new', ts: now + k };
+    ops.push({ tab: 'orders', id, doc: o }, { tab: 'tasks', id, doc: task }, { tab: 'sales', id: sid, doc: { id: sid, oid: id, num, date, ts: now + k, lines: [item] } });
+  });
+  const what = items.map(i => `${i.qty}× ${i.pname}`).join(', '), split = parts > 1 ? ` (rozděleno na ${parts} podobjednávky)` : '';
+  ops.push(fixN(notif('partner', `Nová webová objednávka #${group} od ${customer}: ${what}${split}.`)), fixN(notif('admin', `Nová webová objednávka #${group} od ${customer}: ${what}${split}; kontakt ${email}, ${phone}.`)));
   await commit(ops); publicOrderAttempts.set(q.ip, [...recent, now]);
-  s.status(201).json({ ok: 1, number: num });
+  s.status(201).json({ ok: 1, number: group, parts });
 }));
 app.post('/api/logout', (q, s) => { s.clearCookie('zt'); s.json({ ok: 1 }); });
 app.get('/api/me', auth, (q, s) => s.json({ name: q.user.name, role: q.user.role }));
@@ -231,7 +245,7 @@ const M = {
       if (!ORDER_ST.includes(d.status || 'new')) throw bad('Neplatný stav');
       const items = cleanItems(d.items), num = d.num.trim(), old = S.orders.docs.get(id), ot = S.tasks.docs.get(id);
       if (all('orders').some(o => o.num === num && o.id !== id)) throw bad('Číslo objednávky už existuje', 409);
-      const o = { id, num, date: d.date, due: d.due || '', customer: d.customer.trim(), contact: d.contact || '', ship: d.ship || '', note: d.note || '', status: d.status || 'new', invoiceIssued: old ? !!old.invoiceIssued : false, invoicePaid: old ? !!old.invoicePaid : false, ts: old ? old.ts : Date.now(), items };
+      const o = { id, num, date: d.date, due: d.due || '', customer: d.customer.trim(), contact: d.contact || '', ship: d.ship || '', note: d.note || '', status: d.status || 'new', invoiceIssued: old ? !!old.invoiceIssued : false, invoicePaid: old ? !!old.invoicePaid : false, ts: old ? old.ts : Date.now(), items, ...(old && old.group ? { group: old.group, part: old.part, parts: old.parts, source: old.source, email: old.email, phone: old.phone, contactName: old.contactName } : {}) };
       const task = { id, oid: id, num, customer: o.customer, due: o.due, note: o.note, items: items.map(i => ({ pname: i.pname, qty: i.qty, vars: i.vars })), status: ot ? ot.status : 'new', ts: ot ? ot.ts : Date.now() };
       const sid = 'o_' + id, ops = [{ tab: 'orders', id, doc: o }, { tab: 'tasks', id, doc: task },
         o.status === 'cancelled' ? { tab: 'sales', id: sid, del: 1 } : { tab: 'sales', id: sid, doc: { id: sid, oid: id, num, date: o.date, ts: Date.now(), lines: items } }];
@@ -300,6 +314,22 @@ app.patch('/api/orders/:id/status', auth, admin, w(async (q, s) => {
   s.json({ ok: 1 });
 }));
 
+// Faktura: vystavena / zaplacena. U kombinované webové objednávky platí jedna faktura pro všechny podobjednávky.
+app.patch('/api/orders/:id/invoice', auth, admin, w(async (q, s) => {
+  const id = String(q.params.id), field = String(q.body?.field || ''), value = q.body?.value === true;
+  if (!['invoiceIssued', 'invoicePaid'].includes(field)) throw bad('Neplatné pole faktury');
+  await commit(() => {
+    const o = S.orders.docs.get(id); if (!o) throw bad('Objednávka nenalezena', 404);
+    if (field === 'invoicePaid' && value && !o.invoiceIssued) throw bad('Nejdřív označte fakturu jako vystavenou.');
+    const targets = o.group ? all('orders').filter(x => x.group === o.group) : [o];
+    return targets.map(x => {
+      const doc = { ...x, [field]: value, updatedAt: Date.now() };
+      if (field === 'invoiceIssued' && !value) doc.invoicePaid = false;   // zrušení vystavení ruší i zaplacení
+      return { tab: 'orders', id: x.id, doc };
+    });
+  });
+  s.json({ ok: 1 });
+}));
 app.get('/api/notifications', auth, (q, s) => s.json(all('notifs').filter(n => n.to === q.user.role).sort((a, b) => b.ts - a.ts).slice(0, 100)));
 app.put('/api/notifications/:id/read', auth, w(async (q, s) => {
   await commit(() => { const n = S.notifs.docs.get(q.params.id); return n && n.to === q.user.role ? [{ tab: 'notifs', id: n.id, doc: { ...n, read: true } }] : []; }); s.json({ ok: 1 });
