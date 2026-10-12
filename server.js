@@ -141,7 +141,7 @@ app.get('/api/public-stats', (q, s) => {
   let filamentNotInProduction = 0, filamentInProduction = 0;
   const byProduct = new Map();
   for (const o of liveOrders) {
-    const produced = o.status === 'done';
+    const produced = o.status === 'done' || o.status === 'delivered';
     for (const i of (Array.isArray(o.items) ? o.items : [])) {
       const name = String(i.pname || i.pid || 'Neznámý produkt').trim();
       const qty = Number(i.qty) || 0;
@@ -215,8 +215,8 @@ app.get('/api/events', auth, (q, s) => {
 });
 
 /* ---- doménová logika ---- */
-const ORDER_ST = ['new', 'read', 'progress', 'done', 'cancelled'];
-const notif = (to, text) => ({ tab: 'notifs', id: crypto.randomUUID(), doc: { id: '', to, text, title: /převzal|převzetí/i.test(text) ? 'Objednávka převzata' : /dokončena/i.test(text) ? 'Objednávka dokončena' : /zahájena/i.test(text) ? 'Výroba zahájena' : 'Nová objednávka', ts: Date.now(), read: false } });
+const ORDER_ST = ['new', 'read', 'progress', 'done', 'delivered', 'cancelled'];   // delivered = zboží předáno (poslední stav)
+const notif = (to, text) => ({ tab: 'notifs', id: crypto.randomUUID(), doc: { id: '', to, text, title: /předáno|Předáno/.test(text) ? 'Zboží předáno' : /převzal|převzetí/i.test(text) ? 'Objednávka převzata' : /dokončena/i.test(text) ? 'Objednávka dokončena' : /zahájena/i.test(text) ? 'Výroba zahájena' : 'Nová objednávka', ts: Date.now(), read: false } });
 const fixN = o => (o.doc.id = o.id, o);
 const cleanItems = a => a.map(i => {
   if (!(Number.isInteger(+i.qty) && +i.qty > 0 && +i.price >= 0 && +i.cost >= 0) || !String(i.pname || '').trim()) throw bad('Neplatná položka (množství nebo cena)');
@@ -267,7 +267,7 @@ const M = {
     list: () => all('tasks').sort((a, b) => b.ts - a.ts),
     put(id, d, role) {
       const t = S.tasks.docs.get(id), s = String(d.status || '');
-      const allowed = ['new', 'read', 'progress', 'done'];
+      const allowed = ['new', 'read', 'progress', 'done', 'delivered'];
       if (!t) throw bad('Úkol nenalezen', 404);
       if (!allowed.includes(s)) throw bad('Neplatný stav');
       const o = S.orders.docs.get(id);
@@ -279,7 +279,8 @@ const M = {
         if (s === 'read') ops.push(fixN(notif('admin', `Partner potvrdil převzetí objednávky #${t.num}.`)));
         if (s === 'progress') ops.push(fixN(notif('admin', `Výroba objednávky #${t.num} byla zahájena.`)));
         if (s === 'done') ops.push(fixN(notif('admin', `Objednávka #${t.num} byla dokončena.`)));
-        if (role === 'admin' && s !== 'new') ops.push(fixN(notif('partner', `Stav objednávky #${t.num} byl změněn na ${s === 'read' ? 'Přečteno' : s === 'progress' ? 'V procesu' : 'Dokončeno'}.`)));
+        if (s === 'delivered' && role !== 'admin') ops.push(fixN(notif('admin', `Zboží z objednávky #${t.num} bylo předáno.`)));
+        if (role === 'admin' && s !== 'new') ops.push(fixN(notif('partner', `Stav objednávky #${t.num} byl změněn na ${s === 'read' ? 'Přečteno' : s === 'progress' ? 'V procesu' : s === 'delivered' ? 'Předáno' : 'Dokončeno'}.`)));
       }
       return ops;
     }
