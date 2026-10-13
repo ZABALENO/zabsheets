@@ -161,6 +161,7 @@ app.get('/api/public-stats', (q, s) => {
   s.json({ products, totalOrdered, totalProduced, filamentNotInProduction, filamentInProduction, catalog, updatedAt: new Date().toISOString() });
 });
 
+const PICKUP = ['MH Řeznictví Opava', 'Ladislav Židek Obchod Štěpánkovice', 'Osobní převzetí'];   // místa vyzvednutí
 const publicOrderAttempts = new Map();
 app.post('/api/public-orders', w(async (q, s) => {
   const now = Date.now(), recent = (publicOrderAttempts.get(q.ip) || []).filter(t => now - t < 3600000);
@@ -170,6 +171,8 @@ app.post('/api/public-orders', w(async (q, s) => {
   if (!Array.isArray(d.items) && d.pid) d.items = [{ pid: d.pid, qty: d.qty }];   // zpětná kompatibilita: jedna položka poslaná přímo
   const confirmed = d.confirmed === true || d.confirmed === 'true' || d.confirmed === 'on';
   if (!customer || !contactName || !email || !phone) throw bad('Vyplňte jméno zákazníka, kontaktní osobu, e-mail a telefon.');
+  const pickup = String(d.pickup || '').trim();
+  if (!PICKUP.includes(pickup)) throw bad('Vyberte místo vyzvednutí.');
   if (!confirmed) throw bad('Zaškrtněte potvrzení objednávky.');
   if (!Array.isArray(d.items) || !d.items.length) throw bad('Vyberte produkt a počet kusů.');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw bad('Zadejte platný e-mail.');
@@ -191,15 +194,15 @@ app.post('/api/public-orders', w(async (q, s) => {
   // Kombinovaná objednávka se v interním systému rozpadne na podobjednávky: každý produkt = vlastní objednávka
   // s vlastním stavem výroby. Spojuje je společné číslo (group), číslo podobjednávky je group/1, group/2, …
   const year = new Date().getFullYear(), group = `${year}-WEB-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
-  const date = new Date().toISOString(), parts = items.length, note = String(d.note||'').trim(), ship = String(d.address||'').trim();
+  const date = new Date().toISOString(), parts = items.length, note = String(d.note||'').trim(), ship = pickup;
   const ops = [];
   items.forEach((item, k) => {
     const id = crypto.randomUUID(), num = parts > 1 ? `${group}/${k + 1}` : group, sid = 'o_' + id;
-    const o = { id, num, group, part: k + 1, parts, date, customer, contact: `${contactName}; ${email}; ${phone}`, email, phone, contactName, ship, note, status: 'new', invoiceIssued: false, invoicePaid: false, source: 'public-web', ts: now + k, items: [item] };
-    const task = { id, oid: id, num, group, part: k + 1, parts, customer, due: '', note, items: [{ pname: item.pname, qty: item.qty, vars: item.vars }], status: 'new', ts: now + k };
+    const o = { id, num, group, part: k + 1, parts, date, customer, contact: `${contactName}; ${email}; ${phone}`, email, phone, contactName, pickup, ship, note, status: 'new', invoiceIssued: false, invoicePaid: false, source: 'public-web', ts: now + k, items: [item] };
+    const task = { id, oid: id, num, group, part: k + 1, parts, customer, pickup, due: '', note, items: [{ pname: item.pname, qty: item.qty, vars: item.vars }], status: 'new', ts: now + k };
     ops.push({ tab: 'orders', id, doc: o }, { tab: 'tasks', id, doc: task }, { tab: 'sales', id: sid, doc: { id: sid, oid: id, num, date, ts: now + k, lines: [item] } });
   });
-  const what = items.map(i => `${i.qty}× ${i.pname}`).join(', '), split = parts > 1 ? ` (rozděleno na ${parts} podobjednávky)` : '';
+  const what = items.map(i => `${i.qty}× ${i.pname}`).join(', '), split = (parts > 1 ? ` (rozděleno na ${parts} podobjednávky)` : '') + `; vyzvednutí: ${pickup}`;
   ops.push(fixN(notif('partner', `Nová webová objednávka #${group} od ${customer}: ${what}${split}.`)), fixN(notif('admin', `Nová webová objednávka #${group} od ${customer}: ${what}${split}; kontakt ${email}, ${phone}.`)));
   await commit(ops); publicOrderAttempts.set(q.ip, [...recent, now]);
   s.status(201).json({ ok: 1, number: group, parts });
@@ -244,9 +247,11 @@ const M = {
       if (!String(d.customer || '').trim() || !String(d.num || '').trim() || !Array.isArray(d.items) || !d.items.length || !d.date) throw bad('Neplatná objednávka');
       if (!ORDER_ST.includes(d.status || 'new')) throw bad('Neplatný stav');
       const items = cleanItems(d.items), num = d.num.trim(), old = S.orders.docs.get(id), ot = S.tasks.docs.get(id);
+      const pickup = d.pickup === undefined ? (old?.pickup || '') : String(d.pickup || '').trim();
+      if (pickup && !PICKUP.includes(pickup)) throw bad('Neplatné místo vyzvednutí');
       if (all('orders').some(o => o.num === num && o.id !== id)) throw bad('Číslo objednávky už existuje', 409);
-      const o = { id, num, date: d.date, due: d.due || '', customer: d.customer.trim(), contact: d.contact || '', ship: d.ship || '', note: d.note || '', status: d.status || 'new', invoiceIssued: old ? !!old.invoiceIssued : false, invoicePaid: old ? !!old.invoicePaid : false, ts: old ? old.ts : Date.now(), items, ...(old && old.group ? { group: old.group, part: old.part, parts: old.parts, source: old.source, email: old.email, phone: old.phone, contactName: old.contactName } : {}) };
-      const task = { id, oid: id, num, customer: o.customer, due: o.due, note: o.note, items: items.map(i => ({ pname: i.pname, qty: i.qty, vars: i.vars })), status: ot ? ot.status : 'new', ts: ot ? ot.ts : Date.now() };
+      const o = { id, num, date: d.date, due: d.due || '', customer: d.customer.trim(), contact: d.contact || '', pickup, ship: d.ship || pickup || '', note: d.note || '', status: d.status || 'new', invoiceIssued: old ? !!old.invoiceIssued : false, invoicePaid: old ? !!old.invoicePaid : false, ts: old ? old.ts : Date.now(), items, ...(old && old.group ? { group: old.group, part: old.part, parts: old.parts, source: old.source, email: old.email, phone: old.phone, contactName: old.contactName } : {}) };
+      const task = { id, oid: id, num, customer: o.customer, pickup, due: o.due, note: o.note, items: items.map(i => ({ pname: i.pname, qty: i.qty, vars: i.vars })), status: ot ? ot.status : 'new', ts: ot ? ot.ts : Date.now() };
       const sid = 'o_' + id, ops = [{ tab: 'orders', id, doc: o }, { tab: 'tasks', id, doc: task },
         o.status === 'cancelled' ? { tab: 'sales', id: sid, del: 1 } : { tab: 'sales', id: sid, doc: { id: sid, oid: id, num, date: o.date, ts: Date.now(), lines: items } }];
       if (!old) ops.push(fixN(notif('partner', `Objednávka #${num} čeká na výrobu: ${items.map(i => `${i.qty}× ${i.pname}`).join(', ')}.`)));

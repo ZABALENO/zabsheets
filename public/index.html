@@ -40,7 +40,12 @@
           <label>Kontaktní osoba<input name="contactName" required maxlength="120"></label>
           <label>E-mail<input name="email" type="email" required maxlength="200"></label>
           <label>Telefon<input name="phone" type="tel" required maxlength="60"></label>
-          <label class="full">Adresa / doručení (nepovinné)<input name="address" maxlength="300"></label>
+          <fieldset class="public-pickup full">
+            <legend>Místo vyzvednutí</legend>
+            <label><input type="radio" name="pickup" value="MH Řeznictví Opava" required><span>MH Řeznictví Opava</span></label>
+            <label><input type="radio" name="pickup" value="Ladislav Židek Obchod Štěpánkovice"><span>Ladislav Židek Obchod Štěpánkovice</span></label>
+            <label><input type="radio" name="pickup" value="Osobní převzetí"><span>Osobní převzetí</span></label>
+          </fieldset>
           <div class="public-items full">
             <div class="public-items-head"><span>Produkty</span><small>Do jedné objednávky můžete přidat více produktů.</small></div>
             <div id="publicItems"></div>
